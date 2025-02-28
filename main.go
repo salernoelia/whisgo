@@ -27,6 +27,7 @@ func main() {
         },
         BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
         OnStartup:        app.startup,
+        OnShutdown:       app.shutdown,
         Bind: []interface{}{
             app,
         },
@@ -41,12 +42,11 @@ func main() {
                 HideToolbarSeparator:       true,
             },
             Appearance: mac.NSAppearanceNameDarkAqua,
-            // Enable this to continue running in the background when window is closed
             WebviewIsTransparent:         true,
             WindowIsTranslucent:          true,
             About: &mac.AboutInfo{
                 Title:   "Whisgo",
-                Message: "Global keyboard shortcut: Option+Shift+W",
+                Message: "Global keyboard shortcut: Alt+Space",
                 Icon:    nil,
             },
         },

@@ -1,18 +1,18 @@
 package main
 
 import (
-    "context"
-    "fmt"
-    "os"
-    "os/exec"
-    "path/filepath"
-    "runtime"
-    "sync"
-    "time"
-    "io"
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"sync"
+	"time"
 
-    "github.com/robotn/gohook"
-    wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	hook "github.com/robotn/gohook"
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -28,6 +28,7 @@ type App struct {
     stdin            io.WriteCloser
     groqAPIKey       string
     transcriptionHistory []string
+    model            string // Add the model field
 }
 
 // AudioDevice represents an audio input device
@@ -54,6 +55,7 @@ func (a *App) startup(ctx context.Context) {
     // Load the config
     config := GetConfig()
     a.groqAPIKey = config.GroqAPIKey
+    a.model = config.Model // Load the model
 
     // Start a goroutine to listen for the hotkey
     go a.registerHotkey()
@@ -198,6 +200,10 @@ func (a *App) SetSelectedDevice(deviceID string) {
 func (a *App) StartRecordingMicrophone() string {
     a.recordingMutex.Lock()
     defer a.recordingMutex.Unlock()
+
+    if a.groqAPIKey == "" {
+        return "Please set your Groq API key"
+    }
     
     if a.isRecording {
         return "Already recording"
@@ -333,8 +339,11 @@ func (a *App) StopRecordingMicrophone() string {
         return "Recording stopped, transcription failed"
     }
 
-    // Add the transcription to the history
-    a.transcriptionHistory = append(a.transcriptionHistory, transcription)
+    // Add the transcription to the database
+    err = AddTranscription(transcription)
+    if err != nil {
+        fmt.Printf("Failed to add transcription to database: %v\n", err)
+    }
 
     // Copy to clipboard
     err = wailsRuntime.ClipboardSetText(a.ctx, transcription)
@@ -342,22 +351,35 @@ func (a *App) StopRecordingMicrophone() string {
         fmt.Printf("Failed to copy to clipboard: %v\n", err)
     }
 
-    return "Recording stopped, transcription generated and copied to clipboard"
+    // Emit the updated transcription history
+    a.emitTranscriptionHistory()
+
+    return transcription
 }
 
-func (a *App) ClearRecordingsDir() {
+func (a *App) ClearRecordingsDir() string {
     recordingsDir := "recordings"
     if _, err := os.Stat(recordingsDir); os.IsNotExist(err) {
-        return
+        return "No recordings directory found"
     }
     
     err := os.RemoveAll(recordingsDir)
     if err != nil {
         fmt.Printf("Failed to remove recordings directory: %v\n", err)
+        return fmt.Sprintf("Failed to remove recordings directory: %v", err)
     }
 
-    // Clear transcription history
-    a.transcriptionHistory = []string{}
+    // Clear transcription history from the database
+    err = ClearTranscriptions()
+    if (err != nil) {
+        fmt.Printf("Failed to clear transcriptions from database: %v\n", err)
+        return fmt.Sprintf("Failed to clear transcriptions from database: %v", err)
+    }
+
+    // Emit the updated transcription history
+    a.emitTranscriptionHistory()
+
+    return "Recordings directory cleared"
 }
 
 // GetGroqAPIKey returns the Groq API key
@@ -379,6 +401,34 @@ func (a *App) SetGroqAPIKey(apiKey string) string {
 }
 
 // GetTranscriptionHistory returns the transcription history
-func (a *App) GetTranscriptionHistory() []string {
-    return a.transcriptionHistory
+func (a *App) GetTranscriptionHistory() ([]Transcription, error) {
+    return GetTranscriptions()
+}
+
+// GetModel returns the selected model
+func (a *App) GetModel() string {
+    return a.model
+}
+
+// SetModel sets the selected model
+func (a *App) SetModel(model string) string {
+    a.model = model
+    config := GetConfig()
+    config.Model = model
+    err := SaveConfig(config)
+    if err != nil {
+        fmt.Printf("Failed to save config: %v\n", err)
+        return "Failed to save config"
+    }
+    return "Model saved"
+}
+
+// emitTranscriptionHistory emits the transcription history to the frontend
+func (a *App) emitTranscriptionHistory() {
+    transcriptions, err := GetTranscriptions()
+    if err != nil {
+        fmt.Printf("Failed to get transcriptions: %v\n", err)
+        return
+    }
+    wailsRuntime.EventsEmit(a.ctx, "transcription-history-changed", transcriptions)
 }

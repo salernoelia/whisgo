@@ -14,6 +14,7 @@ const (
 
 type Config struct {
 	GroqAPIKey string `json:"groqAPIKey"`
+	Model      string `json:"model"` // Add the model field
 }
 
 var (

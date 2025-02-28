@@ -14,6 +14,10 @@ export function GetGroqAPIKey() {
   return window['go']['main']['App']['GetGroqAPIKey']();
 }
 
+export function GetModel() {
+  return window['go']['main']['App']['GetModel']();
+}
+
 export function GetTranscriptionHistory() {
   return window['go']['main']['App']['GetTranscriptionHistory']();
 }
@@ -28,6 +32,10 @@ export function IsRecording() {
 
 export function SetGroqAPIKey(arg1) {
   return window['go']['main']['App']['SetGroqAPIKey'](arg1);
+}
+
+export function SetModel(arg1) {
+  return window['go']['main']['App']['SetModel'](arg1);
 }
 
 export function SetSelectedDevice(arg1) {

@@ -3,6 +3,7 @@ module changeme
 go 1.22.0
 
 require (
+	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/robotn/gohook v0.42.0
 	github.com/wailsapp/wails/v2 v2.10.1
 )

@@ -62,6 +62,10 @@ func (a *App) shutdown(ctx context.Context) {
 // registerHotkey sets up the global hotkey listener
 func (a *App) registerHotkey() {
     hook.Register(hook.KeyDown, []string{"alt", "space"}, func(e hook.Event) {
+        a.toggleVisibilityAndRecord()
+    })
+
+    hook.Register(hook.KeyDown, []string{"control", "space"}, func(e hook.Event) {
         a.toggleVisibility()
     })
     
@@ -69,7 +73,43 @@ func (a *App) registerHotkey() {
     <-hook.Process(s)
 }
 
-// toggleVisibility toggles the window visibility
+// Add this method to the App struct
+func (a *App) IsRecording() bool {
+    a.recordingMutex.Lock()
+    defer a.recordingMutex.Unlock()
+    return a.isRecording
+}
+
+func (a *App) toggleVisibilityAndRecord() {
+    a.mu.Lock()
+    defer a.mu.Unlock()
+    
+    if a.isVisible {
+        // Hide window and stop recording if active
+        wailsRuntime.WindowHide(a.ctx)
+        if a.isRecording {
+            a.StopRecordingMicrophone()
+            // Emit event to frontend
+            wailsRuntime.EventsEmit(a.ctx, "recording-stopped")
+        }
+        a.isVisible = false
+    } else {
+        // Show window and start recording
+        wailsRuntime.WindowShow(a.ctx)
+        wailsRuntime.WindowSetAlwaysOnTop(a.ctx, true)
+        time.Sleep(100 * time.Millisecond)
+        wailsRuntime.WindowSetAlwaysOnTop(a.ctx, false)
+        a.isVisible = true
+        
+        // Start recording
+        go func() {
+            result := a.StartRecordingMicrophone()
+            // Emit event to frontend
+            wailsRuntime.EventsEmit(a.ctx, "recording-started", result)
+        }()
+    }
+}
+
 func (a *App) toggleVisibility() {
     a.mu.Lock()
     defer a.mu.Unlock()
@@ -112,34 +152,27 @@ func (a *App) GetAudioDevices() []AudioDevice {
             return devices
         }
         
-
-        // Parse available devices from macOS audio devices
         availableDevices, err := exec.Command("ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", "").CombinedOutput()
         if err != nil {
-            // FFmpeg always returns an error here, but still outputs the device list
             deviceList := string(availableDevices)
             fmt.Printf("Available devices:\n%s\n", deviceList)
             
-            // Add default device
             devices = append(devices, AudioDevice{
                 ID:   "0",
                 Name: "Default Input Device",
             })
             
-            // Add any other detected input devices
             devices = append(devices, AudioDevice{
                 ID:   "1",
                 Name: "Built-in Microphone",
             })
         }
     } else if runtime.GOOS == "windows" {
-        // Add a default device for Windows
         devices = append(devices, AudioDevice{
             ID:   "default",
             Name: "System Default",
         })
     } else {
-        // Linux or other platforms
         devices = append(devices, AudioDevice{
             ID:   "default",
             Name: "System Default",
@@ -149,7 +182,6 @@ func (a *App) GetAudioDevices() []AudioDevice {
     return devices
 }
 
-// SetSelectedDevice sets the selected audio device ID
 func (a *App) SetSelectedDevice(deviceID string) {
     a.selectedDeviceID = deviceID
     fmt.Println("Selected device ID:", deviceID)
@@ -164,7 +196,6 @@ func (a *App) StartRecordingMicrophone() string {
         return "Already recording"
     }
     
-    // Create recordings directory if it doesn't exist
     recordingsDir := "recordings"
     if _, err := os.Stat(recordingsDir); os.IsNotExist(err) {
         err = os.MkdirAll(recordingsDir, 0755)
@@ -175,19 +206,17 @@ func (a *App) StartRecordingMicrophone() string {
         }
     }
     
-    // Generate a filename based on the current time
     timestamp := time.Now().Format("2006-01-02_15-04-05")
     filename := filepath.Join(recordingsDir, timestamp+".wav")
     
     var cmd *exec.Cmd
     
     if runtime.GOOS == "darwin" {
-        deviceID := "0" // default device
+        deviceID := "0"
         if a.selectedDeviceID != "" {
             deviceID = a.selectedDeviceID
         }
         
-        // Use pkill to ensure no ffmpeg processes are running
         exec.Command("pkill", "ffmpeg").Run()
         
         cmd = exec.Command("ffmpeg", 
@@ -197,17 +226,14 @@ func (a *App) StartRecordingMicrophone() string {
             "-ar", "44100",
             "-y", filename)
         
-        // Set up error output
         cmd.Stderr = os.Stderr
         
-        // Create stdin pipe
         stdin, err := cmd.StdinPipe()
         if err != nil {
             return fmt.Sprintf("Failed to create stdin pipe: %v", err)
         }
         a.stdin = stdin
         
-        // Start the recording process
         err = cmd.Start()
         if err != nil {
             a.stdin.Close()
@@ -217,7 +243,6 @@ func (a *App) StartRecordingMicrophone() string {
         a.recordingProcess = cmd
         a.isRecording = true
         
-        // Start a goroutine to wait for the process
         go func() {
             err := cmd.Wait()
             if err != nil {
@@ -233,7 +258,6 @@ func (a *App) StartRecordingMicrophone() string {
     }
 }
 
-// Update the StopRecordingMicrophone function
 func (a *App) StopRecordingMicrophone() string {
     a.recordingMutex.Lock()
     defer a.recordingMutex.Unlock()
@@ -242,30 +266,24 @@ func (a *App) StopRecordingMicrophone() string {
         return "Not currently recording"
     }
     
-    // First close stdin to signal ffmpeg to stop
     if a.stdin != nil {
         a.stdin.Close()
         a.stdin = nil
     }
     
-    // Send SIGINT to the process
     if a.recordingProcess != nil && a.recordingProcess.Process != nil {
         if err := a.recordingProcess.Process.Signal(os.Interrupt); err != nil {
             fmt.Printf("Failed to send interrupt signal: %v\n", err)
-            // Force kill as fallback
             a.recordingProcess.Process.Kill()
         }
         
-        // Wait with timeout
         done := make(chan error, 1)
         go func() {
             done <- a.recordingProcess.Wait()
         }()
         
-        // Wait for process to end or timeout
         select {
         case <-time.After(3 * time.Second):
-            // Force kill if timeout
             a.recordingProcess.Process.Kill()
         case err := <-done:
             if err != nil {
@@ -276,7 +294,6 @@ func (a *App) StopRecordingMicrophone() string {
         a.recordingProcess = nil
     }
     
-    // Make sure ffmpeg is really stopped
     exec.Command("pkill", "ffmpeg").Run()
     
     a.isRecording = false

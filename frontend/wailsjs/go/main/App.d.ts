@@ -6,6 +6,8 @@ export function GetAudioDevices():Promise<Array<main.AudioDevice>>;
 
 export function Greet(arg1:string):Promise<string>;
 
+export function IsRecording():Promise<boolean>;
+
 export function SetSelectedDevice(arg1:string):Promise<void>;
 
 export function StartRecordingMicrophone():Promise<string>;

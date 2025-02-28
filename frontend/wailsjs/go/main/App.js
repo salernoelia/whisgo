@@ -10,6 +10,10 @@ export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
 
+export function IsRecording() {
+  return window['go']['main']['App']['IsRecording']();
+}
+
 export function SetSelectedDevice(arg1) {
   return window['go']['main']['App']['SetSelectedDevice'](arg1);
 }

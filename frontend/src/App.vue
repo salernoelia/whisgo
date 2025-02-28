@@ -10,7 +10,7 @@
           <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
         </select>
       </div>
-
+       
       <div class="settings-row">
         <label for="device-selector">Input Device:</label>
         <select name="device" id="device-selector" v-model="selectedDevice" @change="changeDevice">
@@ -34,8 +34,9 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
-import { GetAudioDevices, SetSelectedDevice, StartRecordingMicrophone, StopRecordingMicrophone } from '../wailsjs/go/main/App';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { GetAudioDevices, SetSelectedDevice, StartRecordingMicrophone, StopRecordingMicrophone, IsRecording } from '../wailsjs/go/main/App';
+import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
 
 interface AudioDevice {
   id: string;
@@ -57,10 +58,30 @@ onMounted(async () => {
       selectedDevice.value = devices[0].id;
       await changeDevice();
     }
+
+    // Check initial recording state
+    isRecording.value = await IsRecording();
+
+    // Listen for recording events
+    EventsOn('recording-started', (result) => {
+      isRecording.value = true;
+      recordingStatus.value = result as string;
+    });
+
+    EventsOn('recording-stopped', () => {
+      isRecording.value = false;
+      recordingStatus.value = 'Recording stopped';
+    });
   } catch (error) {
-    console.error('Error fetching audio devices:', error);
-    recordingStatus.value = 'Failed to load audio devices';
+    console.error('Error in setup:', error);
+    recordingStatus.value = 'Failed to initialize';
   }
+});
+
+// Clean up event listeners
+onUnmounted(() => {
+  EventsOff('recording-started');
+  EventsOff('recording-stopped');
 });
 
 async function changeDevice() {

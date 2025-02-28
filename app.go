@@ -15,7 +15,6 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// App struct
 type App struct {
     ctx              context.Context
     isVisible        bool
@@ -28,16 +27,14 @@ type App struct {
     stdin            io.WriteCloser
     groqAPIKey       string
     transcriptionHistory []string
-    model            string // Add the model field
+    model            string
 }
 
-// AudioDevice represents an audio input device
 type AudioDevice struct {
     ID   string `json:"id"`
     Name string `json:"name"`
 }
 
-// NewApp creates a new App application struct
 func NewApp() *App {
     return &App{
         isVisible:     true,
@@ -47,28 +44,21 @@ func NewApp() *App {
     }
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
     a.ctx = ctx
     
-    // Load the config
     config := GetConfig()
     a.groqAPIKey = config.GroqAPIKey
-    a.model = config.Model // Load the model
-
-    // Start a goroutine to listen for the hotkey
+    a.model = config.Model
     go a.registerHotkey()
 }
 
-// shutdown cleans up resources
 func (a *App) shutdown(ctx context.Context) {
     if a.isRecording {
         a.StopRecordingMicrophone()
     }
 }
 
-// registerHotkey sets up the global hotkey listener
 func (a *App) registerHotkey() {
     hook.Register(hook.KeyDown, []string{"alt", "space"}, func(e hook.Event) {
         a.toggleVisibilityAndRecord()
@@ -82,7 +72,6 @@ func (a *App) registerHotkey() {
     <-hook.Process(s)
 }
 
-// Add this method to the App struct
 func (a *App) IsRecording() bool {
     a.recordingMutex.Lock()
     defer a.recordingMutex.Unlock()
@@ -94,26 +83,21 @@ func (a *App) toggleVisibilityAndRecord() {
     defer a.mu.Unlock()
     
     if a.isVisible {
-        // Hide window and stop recording if active
         wailsRuntime.WindowHide(a.ctx)
         if a.isRecording {
             a.StopRecordingMicrophone()
-            // Emit event to frontend
             wailsRuntime.EventsEmit(a.ctx, "recording-stopped")
         }
         a.isVisible = false
     } else {
-        // Show window and start recording
         wailsRuntime.WindowShow(a.ctx)
         wailsRuntime.WindowSetAlwaysOnTop(a.ctx, true)
         time.Sleep(100 * time.Millisecond)
         wailsRuntime.WindowSetAlwaysOnTop(a.ctx, false)
         a.isVisible = true
         
-        // Start recording
         go func() {
             result := a.StartRecordingMicrophone()
-            // Emit event to frontend
             wailsRuntime.EventsEmit(a.ctx, "recording-started", result)
         }()
     }
@@ -124,11 +108,9 @@ func (a *App) toggleVisibility() {
     defer a.mu.Unlock()
     
     if a.isVisible {
-        // Hide window
         wailsRuntime.WindowHide(a.ctx)
         a.isVisible = false
     } else {
-        // Show window and bring to front
         wailsRuntime.WindowShow(a.ctx)
         wailsRuntime.WindowSetAlwaysOnTop(a.ctx, true)
         time.Sleep(100 * time.Millisecond)
@@ -137,23 +119,17 @@ func (a *App) toggleVisibility() {
     }
 }
 
-// Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
     return fmt.Sprintf("Hello %s, It's show time!", name)
 }
-
-// GetAudioDevices returns a list of available audio input devices
-// GetAudioDevices returns a list of available audio input devices
 func (a *App) GetAudioDevices() []AudioDevice {
     devices := []AudioDevice{}
     
     if runtime.GOOS == "darwin" {
-        // Get list of audio devices using system_profiler
         cmd := exec.Command("system_profiler", "SPAudioDataType", "-json")
         _, err := cmd.Output()
         if err != nil {
             fmt.Printf("Error getting audio devices: %v\n", err)
-            // Fallback to default device
             devices = append(devices, AudioDevice{
                 ID:   "default",
                 Name: "System Default",
@@ -311,7 +287,6 @@ func (a *App) StopRecordingMicrophone() string {
     
     a.isRecording = false
 
-    // Get the recorded audio data
     recordingsDir := "recordings"
     files, err := filepath.Glob(filepath.Join(recordingsDir, "*.wav"))
     if err != nil {
@@ -324,7 +299,6 @@ func (a *App) StopRecordingMicrophone() string {
         return "Recording stopped, no audio found"
     }
 
-    // Get the most recent recording
     filename := files[len(files)-1]
     audioData, err := os.ReadFile(filename)
     if err != nil {
@@ -332,26 +306,22 @@ func (a *App) StopRecordingMicrophone() string {
         return "Recording stopped, failed to read audio"
     }
 
-    // Generate Whisper transcription
     transcription, err := GenerateWhisperTranscription(audioData, "en", a.groqAPIKey)
     if err != nil {
         fmt.Printf("Failed to generate transcription: %v\n", err)
         return "Recording stopped, transcription failed"
     }
 
-    // Add the transcription to the database
     err = AddTranscription(transcription)
     if err != nil {
         fmt.Printf("Failed to add transcription to database: %v\n", err)
     }
 
-    // Copy to clipboard
     err = wailsRuntime.ClipboardSetText(a.ctx, transcription)
     if err != nil {
         fmt.Printf("Failed to copy to clipboard: %v\n", err)
     }
 
-    // Emit the updated transcription history
     a.emitTranscriptionHistory()
 
     return transcription
@@ -369,14 +339,12 @@ func (a *App) ClearRecordingsDir() string {
         return fmt.Sprintf("Failed to remove recordings directory: %v", err)
     }
 
-    // Clear transcription history from the database
     err = ClearTranscriptions()
     if (err != nil) {
         fmt.Printf("Failed to clear transcriptions from database: %v\n", err)
         return fmt.Sprintf("Failed to clear transcriptions from database: %v", err)
     }
 
-    // Emit the updated transcription history
     a.emitTranscriptionHistory()
 
     return "Recordings directory cleared"
@@ -400,12 +368,10 @@ func (a *App) SetGroqAPIKey(apiKey string) string {
     return "API key saved"
 }
 
-// GetTranscriptionHistory returns the transcription history
 func (a *App) GetTranscriptionHistory() ([]Transcription, error) {
     return GetTranscriptions()
 }
 
-// GetModel returns the selected model
 func (a *App) GetModel() string {
     return a.model
 }
@@ -423,7 +389,6 @@ func (a *App) SetModel(model string) string {
     return "Model saved"
 }
 
-// emitTranscriptionHistory emits the transcription history to the frontend
 func (a *App) emitTranscriptionHistory() {
     transcriptions, err := GetTranscriptions()
     if err != nil {

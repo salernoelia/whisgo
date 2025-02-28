@@ -14,7 +14,7 @@ const (
 
 type Config struct {
 	GroqAPIKey string `json:"groqAPIKey"`
-	Model      string `json:"model"` // Add the model field
+	Model      string `json:"model"` 
 }
 
 var (
@@ -24,11 +24,9 @@ var (
 )
 
 func init() {
-	// Determine the config file path
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		fmt.Println("Error getting user config dir:", err)
-		// Fallback to current directory
 		configDir = "."
 	}
 	configPath = filepath.Join(configDir, "whisgo", configFilename)
@@ -36,7 +34,6 @@ func init() {
 
 func GetConfig() Config {
 	configOnce.Do(func() {
-		// Load the config file
 		file, err := os.Open(configPath)
 		if err == nil {
 			defer file.Close()
@@ -53,7 +50,6 @@ func GetConfig() Config {
 }
 
 func SaveConfig(cfg Config) error {
-	// Ensure the directory exists
 	dir := filepath.Dir(configPath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err = os.MkdirAll(dir, 0755)
@@ -62,7 +58,6 @@ func SaveConfig(cfg Config) error {
 		}
 	}
 
-	// Save the config file
 	file, err := os.Create(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
@@ -75,6 +70,6 @@ func SaveConfig(cfg Config) error {
 		return fmt.Errorf("failed to encode config: %w", err)
 	}
 
-	config = cfg // Update the global config
+	config = cfg
 	return nil
 }

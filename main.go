@@ -19,7 +19,7 @@ func main() {
         Width:  1000,
         Height: 600,
         AlwaysOnTop:        true,
-        // DisableResize:      true,
+        DisableResize:      true,
         AssetServer: &assetserver.Options{
             Assets: assets,
         },
@@ -28,7 +28,6 @@ func main() {
         OnShutdown:       app.shutdown,
         Bind: []interface{}{
             app,
-            // Add new methods here
         },
         
         Mac: &mac.Options{
@@ -49,7 +48,6 @@ func main() {
                 Icon:    nil,
             },
         },
-        // This will keep the app running in the background
         HideWindowOnClose: true,
     })
 

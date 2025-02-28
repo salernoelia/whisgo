@@ -31,11 +31,9 @@ var (
 
 
 func init() {
-	// Determine the database file path
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		fmt.Println("Error getting user config dir:", err)
-		// Fallback to current directory
 		configDir = "."
 	}
 	dbPath = filepath.Join(configDir, "whisgo", dbFilename)
@@ -44,7 +42,6 @@ func init() {
 func GetDB() (*sql.DB, error) {
 	var err error
 	dbOnce.Do(func() {
-		// Ensure the directory exists
 		dir := filepath.Dir(dbPath)
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			err = os.MkdirAll(dir, 0755)
@@ -54,24 +51,22 @@ func GetDB() (*sql.DB, error) {
 			}
 		}
 
-		// Open the database
 		db, err = sql.Open("sqlite3", dbPath)
 		if err != nil {
 			fmt.Printf("Failed to open database: %v\n", err)
 			return
 		}
 
-		// Create the transcriptions table if it doesn't exist
 		err = createTranscriptionsTable(db)
 		if err != nil {
 			fmt.Printf("Failed to create transcriptions table: %v\n", err)
-			db = nil // Set db to nil to indicate failure
+			db = nil
 			return
 		}
 	})
 
 	if db == nil && err != nil {
-		return nil, err // Return the error if db is nil
+		return nil, err
 	}
 
 	return db, nil

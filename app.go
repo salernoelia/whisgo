@@ -65,7 +65,7 @@ func (a *App) registerHotkey() {
         a.toggleVisibilityAndRecord()
     })
 
-    hook.Register(hook.KeyDown, []string{"control", "space"}, func(e hook.Event) {
+    hook.Register(hook.KeyDown, []string{"control", "m"}, func(e hook.Event) {
         a.toggleVisibility()
     })
     
@@ -299,4 +299,16 @@ func (a *App) StopRecordingMicrophone() string {
     a.isRecording = false
     
     return "Recording stopped"
+}
+
+func (a *App) ClearRecordingsDir() {
+    recordingsDir := "recordings"
+    if _, err := os.Stat(recordingsDir); os.IsNotExist(err) {
+        return
+    }
+    
+    err := os.RemoveAll(recordingsDir)
+    if err != nil {
+        fmt.Printf("Failed to remove recordings directory: %v\n", err)
+    }
 }

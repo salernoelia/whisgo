@@ -1,6 +1,10 @@
 <template>
   <div class="container">
     <div class="header">
+      <label for="groq-key-input">Groq Key:</label>
+      <input type="text" v-model="groqKey" id="groq-key-input" placeholder="Enter your GROQ key" />
+
+      <button @click="ClearRecordingsDir">Clear Recordings</button>
 
       <div class="settings-row">
         <label for="model-selector">Model:</label>
@@ -35,7 +39,7 @@
 
 <script lang="ts" setup>
 import { ref, onMounted, onUnmounted } from 'vue';
-import { GetAudioDevices, SetSelectedDevice, StartRecordingMicrophone, StopRecordingMicrophone, IsRecording } from '../wailsjs/go/main/App';
+import { GetAudioDevices, SetSelectedDevice, StartRecordingMicrophone, StopRecordingMicrophone, IsRecording, ClearRecordingsDir } from '../wailsjs/go/main/App';
 import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
 
 interface AudioDevice {

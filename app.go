@@ -26,6 +26,8 @@ type App struct {
     recordingProcess *exec.Cmd
     selectedDeviceID string
     stdin            io.WriteCloser
+    groqAPIKey       string
+    transcriptionHistory []string
 }
 
 // AudioDevice represents an audio input device
@@ -40,6 +42,7 @@ func NewApp() *App {
         isVisible:     true,
         isRecording:   false,
         stopRecording: make(chan struct{}),
+        transcriptionHistory: []string{},
     }
 }
 
@@ -48,6 +51,10 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
     a.ctx = ctx
     
+    // Load the config
+    config := GetConfig()
+    a.groqAPIKey = config.GroqAPIKey
+
     // Start a goroutine to listen for the hotkey
     go a.registerHotkey()
 }
@@ -297,8 +304,45 @@ func (a *App) StopRecordingMicrophone() string {
     exec.Command("pkill", "ffmpeg").Run()
     
     a.isRecording = false
-    
-    return "Recording stopped"
+
+    // Get the recorded audio data
+    recordingsDir := "recordings"
+    files, err := filepath.Glob(filepath.Join(recordingsDir, "*.wav"))
+    if err != nil {
+        fmt.Printf("Failed to list recording files: %v\n", err)
+        return "Recording stopped, failed to process"
+    }
+
+    if len(files) == 0 {
+        fmt.Println("No recording files found")
+        return "Recording stopped, no audio found"
+    }
+
+    // Get the most recent recording
+    filename := files[len(files)-1]
+    audioData, err := os.ReadFile(filename)
+    if err != nil {
+        fmt.Printf("Failed to read audio file: %v\n", err)
+        return "Recording stopped, failed to read audio"
+    }
+
+    // Generate Whisper transcription
+    transcription, err := GenerateWhisperTranscription(audioData, "en", a.groqAPIKey)
+    if err != nil {
+        fmt.Printf("Failed to generate transcription: %v\n", err)
+        return "Recording stopped, transcription failed"
+    }
+
+    // Add the transcription to the history
+    a.transcriptionHistory = append(a.transcriptionHistory, transcription)
+
+    // Copy to clipboard
+    err = wailsRuntime.ClipboardSetText(a.ctx, transcription)
+    if err != nil {
+        fmt.Printf("Failed to copy to clipboard: %v\n", err)
+    }
+
+    return "Recording stopped, transcription generated and copied to clipboard"
 }
 
 func (a *App) ClearRecordingsDir() {
@@ -311,4 +355,30 @@ func (a *App) ClearRecordingsDir() {
     if err != nil {
         fmt.Printf("Failed to remove recordings directory: %v\n", err)
     }
+
+    // Clear transcription history
+    a.transcriptionHistory = []string{}
+}
+
+// GetGroqAPIKey returns the Groq API key
+func (a *App) GetGroqAPIKey() string {
+    return a.groqAPIKey
+}
+
+// SetGroqAPIKey sets the Groq API key
+func (a *App) SetGroqAPIKey(apiKey string) string {
+    a.groqAPIKey = apiKey
+    config := GetConfig()
+    config.GroqAPIKey = apiKey
+    err := SaveConfig(config)
+    if err != nil {
+        fmt.Printf("Failed to save config: %v\n", err)
+        return "Failed to save config"
+    }
+    return "API key saved"
+}
+
+// GetTranscriptionHistory returns the transcription history
+func (a *App) GetTranscriptionHistory() []string {
+    return a.transcriptionHistory
 }

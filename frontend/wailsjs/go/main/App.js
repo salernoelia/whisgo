@@ -10,12 +10,24 @@ export function GetAudioDevices() {
   return window['go']['main']['App']['GetAudioDevices']();
 }
 
+export function GetGroqAPIKey() {
+  return window['go']['main']['App']['GetGroqAPIKey']();
+}
+
+export function GetTranscriptionHistory() {
+  return window['go']['main']['App']['GetTranscriptionHistory']();
+}
+
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
 
 export function IsRecording() {
   return window['go']['main']['App']['IsRecording']();
+}
+
+export function SetGroqAPIKey(arg1) {
+  return window['go']['main']['App']['SetGroqAPIKey'](arg1);
 }
 
 export function SetSelectedDevice(arg1) {

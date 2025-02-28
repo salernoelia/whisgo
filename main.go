@@ -19,7 +19,7 @@ func main() {
     err := wails.Run(&options.App{
         Title:  "whisgo",
         Width:  500,
-        Height: 200,
+        Height: 500,
         AlwaysOnTop:        true,
         DisableResize:      true,
         AssetServer: &assetserver.Options{
@@ -30,6 +30,7 @@ func main() {
         OnShutdown:       app.shutdown,
         Bind: []interface{}{
             app,
+            // Add new methods here
         },
         
         Mac: &mac.Options{

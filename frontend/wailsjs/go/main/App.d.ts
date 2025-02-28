@@ -6,9 +6,15 @@ export function ClearRecordingsDir():Promise<void>;
 
 export function GetAudioDevices():Promise<Array<main.AudioDevice>>;
 
+export function GetGroqAPIKey():Promise<string>;
+
+export function GetTranscriptionHistory():Promise<Array<string>>;
+
 export function Greet(arg1:string):Promise<string>;
 
 export function IsRecording():Promise<boolean>;
+
+export function SetGroqAPIKey(arg1:string):Promise<string>;
 
 export function SetSelectedDevice(arg1:string):Promise<void>;
 

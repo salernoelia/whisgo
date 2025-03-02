@@ -1,4 +1,4 @@
-![/build/appicon.png](A)
+![/build/appicon.png](/build/appicon.png)
 
 # Whisgo - AI-Powered Transcription Tool
 

@@ -58,7 +58,7 @@ func (a *App) shutdown(ctx context.Context) {
 
 func (a *App) registerHotkey() {
     hook.Register(hook.KeyDown, []string{"alt", "space"}, func(e hook.Event) {
-        a.toggleVisibilityAndRecord()
+        a.toggleRecord()
     })
 
     hook.Register(hook.KeyDown, []string{"control", "m"}, func(e hook.Event) {
@@ -118,3 +118,17 @@ func (a *App) toggleVisibilityAndRecord() {
     }
 }
 
+func (a *App) toggleRecord() {
+    a.mu.Lock()
+    defer a.mu.Unlock()
+    
+    if a.isRecording {
+        a.StopRecordingMicrophone()
+        wailsRuntime.EventsEmit(a.ctx, "recording-stopped")
+    } else {
+        go func() {
+            result := a.StartRecordingMicrophone()
+            wailsRuntime.EventsEmit(a.ctx, "recording-started", result)
+        }()
+    }
+}

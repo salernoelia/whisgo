@@ -30,6 +30,10 @@ export function IsRecording() {
   return window['go']['main']['App']['IsRecording']();
 }
 
+export function RegisterHotKey() {
+  return window['go']['main']['App']['RegisterHotKey']();
+}
+
 export function SetGroqAPIKey(arg1) {
   return window['go']['main']['App']['SetGroqAPIKey'](arg1);
 }

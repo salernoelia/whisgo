@@ -45,19 +45,43 @@ func (a *App) StartRecordingMicrophone() string {
     var cmd *exec.Cmd
     
     if runtime.GOOS == "darwin" {
-    deviceID := "0"
-    if a.selectedDeviceID != "" {
-        deviceID = a.selectedDeviceID
-    }
-    
-    exec.Command("/opt/homebrew/bin/pkill", "ffmpeg").Run() 
-    
-    cmd = exec.Command("/opt/homebrew/bin/ffmpeg", 
-        "-f", "avfoundation",
-        "-i", fmt.Sprintf(":%s", deviceID),
-        "-ac", "1",
-        "-ar", "44100",
-        "-y", filename)
+        deviceID := "0"
+        if a.selectedDeviceID != "" {
+            deviceID = a.selectedDeviceID
+        }
+        
+        ffmpegPaths := []string{
+            "/opt/homebrew/bin/ffmpeg",    // Homebrew ARM
+            "/usr/local/bin/ffmpeg",       // Homebrew Intel
+            "/usr/bin/ffmpeg",             // System install
+            "ffmpeg",                      // PATH lookup
+        }
+        
+        // Kill any existing ffmpeg processes
+        for _, path := range ffmpegPaths {
+            exec.Command(path, "-version").Run() // Test if exists
+            exec.Command("pkill", "ffmpeg").Run()
+        }
+        
+        // Find working ffmpeg
+        var ffmpegPath string
+        for _, path := range ffmpegPaths {
+            if _, err := exec.LookPath(path); err == nil {
+                ffmpegPath = path
+                break
+            }
+        }
+        
+        if ffmpegPath == "" {
+            return "FFmpeg not found. Please install FFmpeg to record audio."
+        }
+        
+        cmd = exec.Command(ffmpegPath,
+            "-f", "avfoundation",
+            "-i", fmt.Sprintf(":%s", deviceID),
+            "-ac", "1", 
+            "-ar", "44100",
+            "-y", filename)
     
         
         cmd.Stderr = os.Stderr

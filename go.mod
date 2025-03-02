@@ -1,4 +1,4 @@
-module changeme
+module whisgo
 
 go 1.23
 
@@ -6,8 +6,9 @@ toolchain go1.23.6
 
 require (
 	github.com/mattn/go-sqlite3 v1.14.24
-	github.com/robotn/gohook v0.42.0
 	github.com/wailsapp/wails/v2 v2.10.1
+	golang.design/x/hotkey v0.4.1
+	golang.design/x/mainthread v0.3.0
 )
 
 require (
@@ -31,7 +32,6 @@ require (
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	github.com/vcaesar/keycode v0.10.1 // indirect
 	github.com/wailsapp/go-webview2 v1.0.19 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	golang.org/x/crypto v0.33.0 // indirect

@@ -9,5 +9,11 @@
   "author": {
     "name": "salernoelia",
     "email": "putopet@gmail.com"
+  },
+  "info": {
+    "productName": "Whisgo",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright Elia Salerno © 2025",
+    "comments": "Simple Groq whisper client."
   }
 }

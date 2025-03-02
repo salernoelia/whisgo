@@ -1,6 +1,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
     <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>This app requires microphone access to record audio for transcription.</string>
+        
+        <key>NSSystemAdministrationUsageDescription</key>
+        <string>This app requires permission to record system audio.</string>
+        
+        
+        <key>LSApplicationCategoryType</key>
+        <string>public.app-category.utilities</string>
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleName</key>
@@ -58,6 +69,8 @@
             </dict>
           {{end}}
         </array>
+        <key>NSAppTransportSecurity</key>
+       
         {{end}}
     </dict>
 </plist>

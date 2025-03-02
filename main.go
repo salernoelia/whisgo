@@ -16,9 +16,9 @@ func main() {
     app := NewApp()
     err := wails.Run(&options.App{
         Title:  "whisgo",
-        Width:  1000,
-        Height: 600,
-        AlwaysOnTop:        true,
+        Width:  300,
+        Height: 400,
+        AlwaysOnTop:        false,
         DisableResize:      true,
         AssetServer: &assetserver.Options{
             Assets: assets,

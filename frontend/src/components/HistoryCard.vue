@@ -1,5 +1,5 @@
 <template>
-  <div id="container">
+  <div id="cont">
     <div id="header">
       <p>ID:{{ id }},</p>
       <p>Time: {{ new Date(time).toLocaleString() }}</p>
@@ -16,20 +16,15 @@
 <script setup lang="ts">
 import { defineProps } from 'vue';
 
-
-
 const props = defineProps<{
   id: number,
   text: string,
   time: string,
 }>();
 
-
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text);
 }
-
-
 </script>
 
 <style scoped>
@@ -38,12 +33,13 @@ p {
   text-align: left;
 }
 
-#container {
-  margin: 0 10px;
+#cont {
   padding: 5px;
   border-radius: 5px;
   border: 1px solid #ccc;
   margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
 
 }
 
@@ -52,10 +48,14 @@ p {
   flex-direction: row;
   justify-content: space-between;
   margin-bottom: 10px;
+  opacity: 0.7;
+  width: 100%;
 }
+
 
 #content {
   margin-bottom: 10px;
+  width: 100%;
 }
 
 #copy-button {

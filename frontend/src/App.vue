@@ -1,58 +1,62 @@
 <template>
   <div class="container">
-    <div class="container-left">
-      <div class="groq-key-input" style="display: flex; gap: 10px;">
-        <input style="width: 100%;" type="text" v-model="groqKey" id="groq-key-input" placeholder="Enter your GROQ key"
-          @blur="saveAPIKey" />
-        <button style="width: fit-content;" @click="saveAPIKey">Save</button>
-      </div>
-      <button @click="ClearRecordingsDir">Clear Recordings</button>
+    <dialog id="settings" ref="settingsDialog">
+      <button @click="closeSettings" autofocus>Close</button>
 
-      <div class="settings-row">
-        <label for="model-selector">Model:</label>
-        <select name="model" id="model-selector" v-model="model" @change="saveModel">
-          <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en</option>
-          <option value="whisper-large-v3">whisper-large-v3</option>
-          <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
-        </select>
-      </div>
-       
-      <div class="settings-row">
-        <label for="device-selector">Input Device:</label>
-        <select name="device" id="device-selector" v-model="selectedDevice" @change="changeDevice">
-          <option v-for="device in audioDevices" :key="device.id" :value="device.id">
-            {{ device.name }}
-          </option>
-        </select>
-      </div>
+      <div class="container-left">
+        <div class="groq-key-input" style="display: flex; gap: 10px; align-items: center;">
+          <label for="groq-key-input">Key:</label>
 
+          <input style="width: 100%;" type="text" v-model="groqKey" id="groq-key-input"
+            placeholder="Enter your GROQ key" />
+          <button style="width: fit-content;" @click="saveAPIKey">Save</button>
+        </div>
+
+
+        <div class="settings-row">
+
+          <select name="model" id="model-selector" v-model="model" @change="saveModel">
+            <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en</option>
+            <option value="whisper-large-v3">whisper-large-v3</option>
+            <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
+          </select>
+
+        </div>
+
+        <div class="settings-row">
+
+          <select name="device" id="device-selector" v-model="selectedDevice" @change="changeDevice">
+            <option v-for="device in audioDevices" :key="device.id" :value="device.id">
+              {{ device.name }}
+            </option>
+          </select>
+        </div>
+
+
+      </div>
+    </dialog>
+
+    <div class="container-right">
       <div class="recording-controls">
+        <div v-if="recordingStatus" class="status-message">
+          {{ recordingStatus }}
+        </div>
         <button class="record-button" :class="{ 'recording': isRecording }" @click="toggleRecording"
           :disabled="!groqKey">
           {{ isRecording ? 'Stop Recording' : 'Start Recording' }}
         </button>
 
-        <div v-if="recordingStatus" class="status-message">
-          {{ recordingStatus }}
-        </div>
+
         <div v-if="!groqKey" class="error-message">
           Please enter your Groq API key to start recording.
         </div>
       </div>
 
-      <button @click="copyToClipboard" :disabled="!currentTranscription">Copy to Clipboard</button>
-    </div>
-    <div class="container-right">
-
+      <button @click="openSettings">Settings</button>
+      <button @click="ClearRecordingsDir">Clear Recordings</button>
       <div class="history-area">
-        <h2>Transcription History:</h2>
-        <ul>
-          <li v-for="(transcription, index) in transcriptionHistory" :key="index">
-            {{ transcription.Timestamp }}: {{ transcription.Text }}
-            <HistoryCard :id="transcription.Id" :text="transcription.Text" :time="transcription.Timestamp" />
-          </li>
-        </ul>
-
+        <HistoryCard v-for="(transcription, index) in transcriptionHistory" :key="index" :id="transcription.Id"
+          :text="transcription.Text" :time="transcription.Timestamp" />
       </div>
     </div>
   </div>
@@ -72,7 +76,8 @@ interface AudioDevice {
   name: string;
 }
 
-
+const historyArea = ref<HTMLDivElement | null>(null);
+const settingsDialog = ref<HTMLDialogElement | null>(null);
 const model = ref('distil-whisper-large-v3-en');
 const groqKey = ref('');
 const audioDevices = ref<AudioDevice[]>([]);
@@ -81,6 +86,18 @@ const isRecording = ref(false);
 const recordingStatus = ref('');
 const currentTranscription = ref('');
 const transcriptionHistory = ref<main.Transcription[]>([]);
+
+const openSettings = () => {
+  if (settingsDialog.value) {
+    settingsDialog.value.showModal();
+  }
+};
+
+const closeSettings = () => {
+  if (settingsDialog.value) {
+    settingsDialog.value.close();
+  }
+};
 
 onMounted(async () => {
   try {
@@ -145,6 +162,10 @@ async function toggleRecording() {
     if (isRecording.value) {
       recordingStatus.value = await StopRecordingMicrophone();
       isRecording.value = false;
+      historyArea.value?.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
     } else {
       recordingStatus.value = await StartRecordingMicrophone();
       isRecording.value = true;
@@ -195,41 +216,55 @@ async function updateTranscriptionHistory() {
 }
 </script>
 
-<style scoped>
+<style>
 .container {
   display: flex;
   flex-direction: row;
-  padding: 20px;
   gap: 20px;
   width: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   margin: 0 auto;
   gap: 0;
+  height: 100vh;
+  width: 100%;
+  justify-content: center;
+  padding-top: 20px;
+
+
 }
 
 .container-left {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  padding: 20px;
+  width: 100%;
   gap: 10px;
+
 }
 
 .container-right {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 20px;
+  width: 85%;
 }
 
 .history-area {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 10px;
   overflow-y: scroll;
 }
 
 h1 {
   font-size: 24px;
   margin-bottom: 15px;
+}
+
+#settings {
+  width: 80%;
+  background-color: #1d1d1d;
+  color: white;
 }
 
 .settings-row {
@@ -258,32 +293,75 @@ label {
 }
 
 .record-button {
-  padding: 12px 24px;
+  padding: 8px 24px;
+  width: 100%;
   font-size: 16px;
-  background-color: #4CAF50;
+  background-color: #101010;
+  border: 1px solid #8f8f8f;
   color: white;
-  border: none;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s;
 }
 
+button {
+  padding: 8px 15px;
+  font-size: 16px;
+  background-color: #292929;
+  border: 1px solid #8f8f8f;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+button:hover {
+  background-color: #333;
+}
+
+input {
+
+  padding: 8px 15px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #292929;
+  color: white;
+}
+
+select {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #292929;
+  color: white;
+  /* the select has some kind of gloss effect how to disable 
+  */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
 .record-button:hover {
-  background-color: #45a049;
+  background-color: #09420c;
 }
 
 .record-button.recording {
-  background-color: #f44336;
+  background-color: #58120d;
 }
 
 .record-button.recording:hover {
-  background-color: #d32f2f;
+  background-color: #8e2222;
 }
 
 .status-message {
-  margin-top: 10px;
+  margin-bottom: 10px;
   font-size: 14px;
+  padding: 6px 3px;
   color: #666;
+  width: 100%;
+  text-align: center;
+  border: 1px dashed #434343;
+  box-sizing: border-box;
 }
 
 
@@ -292,7 +370,6 @@ textarea {
   padding: 8px;
   border-radius: 4px;
   border: 1px solid #ccc;
-  margin-bottom: 10px;
 }
 
 ul {
@@ -300,12 +377,14 @@ ul {
   padding: 0;
 }
 
-li {
-  margin-bottom: 5px;
-}
 
 .error-message {
   color: red;
   margin-top: 10px;
+}
+
+::backdrop {
+  background-color: #292929;
+  opacity: 0.75;
 }
 </style>

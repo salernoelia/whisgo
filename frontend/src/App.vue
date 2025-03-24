@@ -64,6 +64,7 @@ import HistoryCard from './components/HistoryCard.vue';
 import { useGroq } from './composables/useGroq';
 import { useAudioRecording } from './composables/useAudioRecording';
 import { useTranscriptionHistory } from './composables/useTranscriptionHistory';
+import { CopyToClipboard } from '../wailsjs/go/main/App';
 
 // Initialize composables
 const {
@@ -211,7 +212,7 @@ function saveModel() {
 
 async function copyToClipboard(text: string) {
   try {
-    await navigator.clipboard.writeText(text);
+    await CopyToClipboard(text);
     recordingStatus.value = 'Copied to clipboard';
     return true;
   } catch (error) {

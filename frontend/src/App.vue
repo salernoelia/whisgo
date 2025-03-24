@@ -1,65 +1,55 @@
 <template>
   <div class="container">
-    <div class="settings-panel">
-      <h1>Whisgo</h1>
+    <dialog id="settings" ref="settingsDialog">
+      <button @click="closeSettings" autofocus>Close</button>
 
-      <div class="settings-row">
-        <label for="groq-key-input">Groq API Key:</label>
-        <input type="text" v-model="groqKey" id="groq-key-input" placeholder="Enter your GROQ key" @blur="saveAPIKey" />
-        <button @click="saveAPIKey">Save</button>
+      <div class="container-left">
+        <div class="groq-key-input" style="display: flex; gap: 10px; align-items: center;">
+          <label for="groq-key-input">Key:</label>
+          <input style="width: 100%;" type="text" v-model="groqKey" id="groq-key-input"
+            placeholder="Enter your GROQ key" />
+          <button style="width: fit-content;" @click="saveAPIKey">Save</button>
+        </div>
+
+        <div class="settings-row">
+          <select name="model" id="model-selector" v-model="selectedModel" @change="saveModel">
+            <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en</option>
+            <option value="whisper-large-v3">whisper-large-v3</option>
+            <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
+          </select>
+        </div>
+
+        <div class="settings-row">
+          <select name="device" id="device-selector" v-model="selectedDeviceId" @change="changeDevice">
+            <option v-for="device in audioDevices" :key="device.deviceId" :value="device.deviceId">
+              {{ device.label || `Microphone ${device.deviceId.slice(0, 5)}...` }}
+            </option>
+          </select>
+        </div>
       </div>
+    </dialog>
 
-      <div class="settings-row">
-        <label for="model-selector">Model:</label>
-        <select name="model" id="model-selector" v-model="selectedModel" @change="saveModel">
-          <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en</option>
-          <option value="whisper-large-v3">whisper-large-v3</option>
-          <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
-        </select>
-      </div>
-
-      <div class="settings-row">
-        <label for="device-selector">Input Device:</label>
-        <select name="device" id="device-selector" v-model="selectedDeviceId" @change="changeDevice">
-          <option v-for="device in audioDevices" :key="device.deviceId" :value="device.deviceId">
-            {{ device.label || `Microphone ${device.deviceId.slice(0, 5)}...` }}
-          </option>
-        </select>
-        <button @click="refreshDevices">Refresh</button>
-      </div>
-
+    <div class="container-right">
       <div class="recording-controls">
+        <div v-if="recordingStatus" class="status-message">
+          {{ recordingStatus }}
+        </div>
         <button class="record-button" :class="{ 'recording': isRecording }" @click="toggleRecording"
           :disabled="!groqKey || isProcessing">
           {{ isRecording ? 'Stop Recording' : 'Start Recording' }}
         </button>
-
-        <div v-if="recordingStatus" class="status-message">
-          {{ recordingStatus }}
-        </div>
-
         <div v-if="!groqKey" class="error-message">
           Please enter your Groq API key to start recording.
         </div>
-
         <div v-if="audioError" class="error-message">
           {{ audioError }}
         </div>
       </div>
 
-      <div class="action-buttons">
-        <button @click="copyToClipboard(currentTranscription)" :disabled="!currentTranscription">
-          Copy Latest to Clipboard
-        </button>
-        <button @click="clearTranscriptionHistory">
-          Clear History
-        </button>
-      </div>
-    </div>
+      <button @click="openSettings">Settings</button>
+      <button @click="clearTranscriptionHistory">Clear History</button>
 
-    <div class="history-panel">
-      <h2>Transcription History</h2>
-      <div class="history-list">
+      <div class="history-area" ref="historyArea">
         <HistoryCard v-for="transcription in transcriptions" :key="transcription.id" :id="transcription.id"
           :text="transcription.text" :time="transcription.timestamp" @copy="copyToClipboard" />
       </div>
@@ -81,7 +71,7 @@ const {
   model: selectedModel,
   isProcessing,
   saveApiKey,
-  saveModel: saveModelSetting, // Renamed to avoid conflict
+  saveModel: saveModelSetting,
   transcribeAudio
 } = useGroq();
 
@@ -104,6 +94,8 @@ const {
 } = useTranscriptionHistory();
 
 // Local refs
+const historyArea = ref<HTMLDivElement | null>(null);
+const settingsDialog = ref<HTMLDialogElement | null>(null);
 const recordingStatus = ref('');
 const currentTranscription = ref('');
 
@@ -111,6 +103,18 @@ const currentTranscription = ref('');
 const audioDevices = computed(() => {
   return availableDevices.value;
 });
+
+const openSettings = () => {
+  if (settingsDialog.value) {
+    settingsDialog.value.showModal();
+  }
+};
+
+const closeSettings = () => {
+  if (settingsDialog.value) {
+    settingsDialog.value.close();
+  }
+};
 
 onMounted(async () => {
   try {
@@ -155,15 +159,21 @@ async function toggleRecording() {
       recordingStatus.value = 'Stopping recording...';
       const audioBlob = await stopRecording();
 
-      // Process the audio
       recordingStatus.value = 'Transcribing...';
       const transcription = await transcribeAudio(audioBlob);
 
-      // Add to history and update UI
       addTranscription(transcription);
       currentTranscription.value = transcription;
+
+
+
+      historyArea.value?.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+
       await copyToClipboard(transcription);
-      recordingStatus.value = 'Transcription complete';
+      recordingStatus.value = 'Transcription complete and copied to clipboard';
     } else {
       if (!groqKey.value) {
         recordingStatus.value = 'Please set your Groq API key';
@@ -183,6 +193,7 @@ async function toggleRecording() {
 function saveAPIKey() {
   try {
     recordingStatus.value = saveApiKey(groqKey.value);
+    closeSettings();
   } catch (error) {
     console.error('Error saving API key:', error);
     recordingStatus.value = 'Failed to save API key';
@@ -202,9 +213,11 @@ async function copyToClipboard(text: string) {
   try {
     await navigator.clipboard.writeText(text);
     recordingStatus.value = 'Copied to clipboard';
+    return true;
   } catch (error) {
     console.error('Error copying to clipboard:', error);
     recordingStatus.value = 'Failed to copy to clipboard';
+    return false;
   }
 }
 
@@ -214,17 +227,41 @@ function clearTranscriptionHistory() {
 }
 </script>
 
-<style scoped>
+<style>
 .container {
   display: flex;
-  flex-direction: column;
-  padding: 20px;
+  flex-direction: row;
   gap: 20px;
+  width: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  max-width: 800px;
   margin: 0 auto;
-  height: calc(100vh - 40px);
-  color: white;
+  gap: 0;
+  height: 100vh;
+  width: 100%;
+  justify-content: center;
+  padding-top: 20px;
+}
+
+.container-left {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 10px;
+}
+
+.container-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 85%;
+}
+
+.history-area {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: scroll;
 }
 
 h1 {
@@ -232,143 +269,125 @@ h1 {
   margin-bottom: 15px;
 }
 
-h2 {
-  font-size: 18px;
-  margin-bottom: 10px;
-}
-
-.settings-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 15px;
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+#settings {
+  width: 80%;
+  background-color: #1d1d1d;
+  color: white;
 }
 
 .settings-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
 }
 
 label {
   font-weight: 500;
-  min-width: 100px;
+  width: 100px;
 }
 
-input[type="text"],
-select {
+#model-selector,
+#device-selector {
   flex: 1;
   font-size: 1em;
   padding: 8px;
   border-radius: 4px;
-  border: 1px solid #444;
-  background-color: #333;
-  color: white;
+  border: 1px solid #ccc;
 }
 
 .recording-controls {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  margin: 15px 0;
 }
 
 .record-button {
-  padding: 12px 24px;
+  padding: 8px 24px;
+  width: 100%;
   font-size: 16px;
-  background-color: #4CAF50;
+  background-color: #101010;
+  border: 1px solid #8f8f8f;
   color: white;
-  border: none;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s;
-}
-
-.record-button:hover:not(:disabled) {
-  background-color: #45a049;
-}
-
-.record-button.recording {
-  background-color: #f44336;
-}
-
-.record-button.recording:hover:not(:disabled) {
-  background-color: #d32f2f;
-}
-
-.record-button:disabled {
-  background-color: #555;
-  cursor: not-allowed;
-}
-
-.status-message {
-  margin-top: 5px;
-  font-size: 14px;
-  color: #aaa;
-}
-
-.error-message {
-  color: #ff6b6b;
-  margin-top: 5px;
-  font-size: 14px;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
 }
 
 button {
-  padding: 8px 16px;
-  background-color: #3498db;
+  padding: 8px 15px;
+  font-size: 16px;
+  background-color: #292929;
+  border: 1px solid #8f8f8f;
   color: white;
-  border: none;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s;
 }
 
-button:hover:not(:disabled) {
-  background-color: #2980b9;
+button:hover {
+  background-color: #333;
 }
 
-button:disabled {
-  background-color: #555;
-  cursor: not-allowed;
+input {
+  padding: 8px 15px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #292929;
+  color: white;
 }
 
-.history-panel {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+select {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  background-color: #292929;
+  color: white;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
-.history-list {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-right: 5px;
+.record-button:hover {
+  background-color: #09420c;
 }
 
-/* Custom scrollbar */
-.history-list::-webkit-scrollbar {
-  width: 6px;
+.record-button.recording {
+  background-color: #58120d;
 }
 
-.history-list::-webkit-scrollbar-track {
-  background: #333;
+.record-button.recording:hover {
+  background-color: #8e2222;
 }
 
-.history-list::-webkit-scrollbar-thumb {
-  background-color: #666;
-  border-radius: 6px;
+.status-message {
+  margin-bottom: 10px;
+  font-size: 14px;
+  padding: 6px 3px;
+  color: #666;
+  width: 100%;
+  text-align: center;
+  border: 1px dashed #434343;
+  box-sizing: border-box;
+}
+
+textarea {
+  width: 100%;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.error-message {
+  color: red;
+  margin-top: 10px;
+}
+
+::backdrop {
+  background-color: #292929;
+  opacity: 0.75;
 }
 </style>

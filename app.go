@@ -36,16 +36,15 @@ func (a *App) RegisterHotKey() {
 
 func registerHotkey(a *App) {
 	// Register Ctrl+Space hotkey
-	// Use numeric constants for hotkey instead of named constants
-	// to avoid platform-specific compilation issues
-	modifier := 1 // Ctrl key (ModCtrl)
-	key := 49     // Space key (KeySpace)
+	// Using correct hotkey combination for Ctrl+Space
+	hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl}, hotkey.KeySpace)
 	
-	hk := hotkey.New([]hotkey.Modifier{hotkey.Modifier(modifier)}, hotkey.Key(key))
 	err := hk.Register()
 	if err != nil {
+		fmt.Printf("Failed to register hotkey: %v\n", err)
 		return
 	}
+	
 	<-hk.Keydown()
     
     // Emit an event to the frontend

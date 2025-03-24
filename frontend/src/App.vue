@@ -1,259 +1,230 @@
 <template>
   <div class="container">
-    <dialog id="settings" ref="settingsDialog">
-      <button @click="closeSettings" autofocus>Close</button>
+    <div class="settings-panel">
+      <h1>Whisgo</h1>
 
-      <div class="container-left">
-        <div class="groq-key-input" style="display: flex; gap: 10px; align-items: center;">
-          <label for="groq-key-input">Key:</label>
-
-          <input style="width: 100%;" type="text" v-model="groqKey" id="groq-key-input"
-            placeholder="Enter your GROQ key" />
-          <button style="width: fit-content;" @click="saveAPIKey">Save</button>
-        </div>
-
-
-        <div class="settings-row">
-
-          <select name="model" id="model-selector" v-model="model" @change="saveModel">
-            <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en</option>
-            <option value="whisper-large-v3">whisper-large-v3</option>
-            <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
-          </select>
-
-        </div>
-
-        <div class="settings-row">
-
-          <select name="device" id="device-selector" v-model="selectedDevice" @change="changeDevice">
-            <option v-for="device in audioDevices" :key="device.id" :value="device.id">
-              {{ device.name }}
-            </option>
-          </select>
-        </div>
-
-
+      <div class="settings-row">
+        <label for="groq-key-input">Groq API Key:</label>
+        <input type="text" v-model="groqKey" id="groq-key-input" placeholder="Enter your GROQ key" @blur="saveAPIKey" />
+        <button @click="saveAPIKey">Save</button>
       </div>
-    </dialog>
 
-    <div class="container-right">
+      <div class="settings-row">
+        <label for="model-selector">Model:</label>
+        <select name="model" id="model-selector" v-model="selectedModel" @change="saveModel">
+          <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en</option>
+          <option value="whisper-large-v3">whisper-large-v3</option>
+          <option value="whisper-large-v3-turbo">whisper-large-v3-turbo</option>
+        </select>
+      </div>
+
+      <div class="settings-row">
+        <label for="device-selector">Input Device:</label>
+        <select name="device" id="device-selector" v-model="selectedDeviceId" @change="changeDevice">
+          <option v-for="device in audioDevices" :key="device.deviceId" :value="device.deviceId">
+            {{ device.label || `Microphone ${device.deviceId.slice(0, 5)}...` }}
+          </option>
+        </select>
+        <button @click="refreshDevices">Refresh</button>
+      </div>
+
       <div class="recording-controls">
-        <div v-if="recordingStatus" class="status-message">
-          {{ recordingStatus }}
-        </div>
         <button class="record-button" :class="{ 'recording': isRecording }" @click="toggleRecording"
-          :disabled="!groqKey">
+          :disabled="!groqKey || isProcessing">
           {{ isRecording ? 'Stop Recording' : 'Start Recording' }}
         </button>
 
+        <div v-if="recordingStatus" class="status-message">
+          {{ recordingStatus }}
+        </div>
 
         <div v-if="!groqKey" class="error-message">
           Please enter your Groq API key to start recording.
         </div>
+
+        <div v-if="audioError" class="error-message">
+          {{ audioError }}
+        </div>
       </div>
 
-      <button @click="openSettings">Settings</button>
-      <button @click="ClearRecordingsDir">Clear Recordings</button>
-      <div class="history-area">
-        <HistoryCard v-for="(transcription, index) in transcriptionHistory" :key="index" :id="transcription.Id"
-          :text="transcription.Text" :time="transcription.Timestamp" />
+      <div class="action-buttons">
+        <button @click="copyToClipboard(currentTranscription)" :disabled="!currentTranscription">
+          Copy Latest to Clipboard
+        </button>
+        <button @click="clearTranscriptionHistory">
+          Clear History
+        </button>
+      </div>
+    </div>
+
+    <div class="history-panel">
+      <h2>Transcription History</h2>
+      <div class="history-list">
+        <HistoryCard v-for="transcription in transcriptions" :key="transcription.id" :id="transcription.id"
+          :text="transcription.text" :time="transcription.timestamp" @copy="copyToClipboard" />
       </div>
     </div>
   </div>
-
-
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted } from 'vue';
-import { GetAudioDevices, SetSelectedDevice, StartRecordingMicrophone, StopRecordingMicrophone, IsRecording, ClearRecordingsDir, GetGroqAPIKey, SetGroqAPIKey, GetTranscriptionHistory, GetModel, SetModel } from '../wailsjs/go/main/App';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
 import HistoryCard from './components/HistoryCard.vue';
-import type { main } from '../wailsjs/go/models';
+import { useGroq } from './composables/useGroq';
+import { useAudioRecording } from './composables/useAudioRecording';
+import { useTranscriptionHistory } from './composables/useTranscriptionHistory';
 
-interface AudioDevice {
-  id: string;
-  name: string;
-}
+// Initialize composables
+const {
+  apiKey: groqKey,
+  model: selectedModel,
+  isProcessing,
+  saveApiKey,
+  saveModel: saveModelSetting, // Renamed to avoid conflict
+  transcribeAudio
+} = useGroq();
 
-const historyArea = ref<HTMLDivElement | null>(null);
-const settingsDialog = ref<HTMLDialogElement | null>(null);
-const model = ref('distil-whisper-large-v3-en');
-const groqKey = ref('');
-const audioDevices = ref<AudioDevice[]>([]);
-const selectedDevice = ref('');
-const isRecording = ref(false);
+const {
+  isRecording,
+  audioData,
+  error: audioError,
+  availableDevices,
+  selectedDevice: selectedDeviceId,
+  initAudioDevices,
+  selectDevice,
+  startRecording,
+  stopRecording
+} = useAudioRecording();
+
+const {
+  history: transcriptions,
+  addTranscription,
+  clearHistory
+} = useTranscriptionHistory();
+
+// Local refs
 const recordingStatus = ref('');
 const currentTranscription = ref('');
-const transcriptionHistory = ref<main.Transcription[]>([]);
 
-const openSettings = () => {
-  if (settingsDialog.value) {
-    settingsDialog.value.showModal();
-  }
-};
-
-const closeSettings = () => {
-  if (settingsDialog.value) {
-    settingsDialog.value.close();
-  }
-};
+// Computed for UI
+const audioDevices = computed(() => {
+  return availableDevices.value;
+});
 
 onMounted(async () => {
   try {
-    // Load API key from config
-    groqKey.value = await GetGroqAPIKey();
+    // Initialize audio devices
+    await initAudioDevices();
 
-    // Load model from config
-    model.value = await GetModel();
-
-    const devices = await GetAudioDevices();
-    audioDevices.value = devices;
-    if (devices.length > 0) {
-      selectedDevice.value = devices[0].id;
-      await changeDevice();
-    }
-
-    // Check initial recording state
-    isRecording.value = await IsRecording();
-
-    // Load transcription history
-    await updateTranscriptionHistory();
-
-    // Listen for recording events
-    EventsOn('recording-started', (result) => {
-      isRecording.value = true;
-      recordingStatus.value = result as string;
-    });
-
-    EventsOn('recording-stopped', (result) => {
-      isRecording.value = false;
-      recordingStatus.value = result as string;
-      currentTranscription.value = result as string;
-      updateTranscriptionHistory();
-    });
-
-    EventsOn('transcription-history-changed', (history) => {
-      transcriptionHistory.value = history as main.Transcription[];
+    // Listen for hotkey trigger event from Go backend
+    EventsOn('hotkey-triggered', () => {
+      toggleRecording();
     });
   } catch (error) {
-    console.error('Error in setup:', error);
+    console.error('Error during initialization:', error);
     recordingStatus.value = 'Failed to initialize';
   }
 });
 
-// Clean up event listeners
 onUnmounted(() => {
-  EventsOff('recording-started');
-  EventsOff('recording-stopped');
-  EventsOff('transcription-history-changed');
+  EventsOff('hotkey-triggered');
 });
 
 async function changeDevice() {
   try {
-    await SetSelectedDevice(selectedDevice.value);
+    selectDevice(selectedDeviceId.value);
   } catch (error) {
     console.error('Error setting audio device:', error);
+  }
+}
+
+async function refreshDevices() {
+  try {
+    await initAudioDevices();
+    recordingStatus.value = 'Devices refreshed';
+  } catch (error) {
+    console.error('Error refreshing devices:', error);
+    recordingStatus.value = 'Failed to refresh devices';
   }
 }
 
 async function toggleRecording() {
   try {
     if (isRecording.value) {
-      recordingStatus.value = await StopRecordingMicrophone();
-      isRecording.value = false;
-      historyArea.value?.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
+      recordingStatus.value = 'Stopping recording...';
+      const audioBlob = await stopRecording();
+
+      // Process the audio
+      recordingStatus.value = 'Transcribing...';
+      const transcription = await transcribeAudio(audioBlob);
+
+      // Add to history and update UI
+      addTranscription(transcription);
+      currentTranscription.value = transcription;
+      await copyToClipboard(transcription);
+      recordingStatus.value = 'Transcription complete';
     } else {
-      recordingStatus.value = await StartRecordingMicrophone();
-      isRecording.value = true;
+      if (!groqKey.value) {
+        recordingStatus.value = 'Please set your Groq API key';
+        return;
+      }
+
+      await startRecording();
+      recordingStatus.value = 'Recording started';
     }
   } catch (error) {
-    console.error('Error toggling recording:', error);
-    recordingStatus.value = 'Error with recording';
+    console.error('Error during recording process:', error);
+    recordingStatus.value = error instanceof Error ? error.message : 'Error with recording';
     isRecording.value = false;
   }
 }
 
-async function saveAPIKey() {
+function saveAPIKey() {
   try {
-    const result = await SetGroqAPIKey(groqKey.value);
-    recordingStatus.value = result;
+    recordingStatus.value = saveApiKey(groqKey.value);
   } catch (error) {
     console.error('Error saving API key:', error);
     recordingStatus.value = 'Failed to save API key';
   }
 }
 
-async function saveModel() {
+function saveModel() {
   try {
-    const result = await SetModel(model.value);
-    recordingStatus.value = result;
+    recordingStatus.value = saveModelSetting(selectedModel.value);
   } catch (error) {
     console.error('Error saving model:', error);
     recordingStatus.value = 'Failed to save model';
   }
 }
 
-async function copyToClipboard() {
+async function copyToClipboard(text: string) {
   try {
-    await navigator.clipboard.writeText(currentTranscription.value);
-    recordingStatus.value = 'Transcription copied to clipboard';
+    await navigator.clipboard.writeText(text);
+    recordingStatus.value = 'Copied to clipboard';
   } catch (error) {
     console.error('Error copying to clipboard:', error);
     recordingStatus.value = 'Failed to copy to clipboard';
   }
 }
 
-async function updateTranscriptionHistory() {
-  try {
-    transcriptionHistory.value = await GetTranscriptionHistory();
-  } catch (error) {
-    console.error('Error getting transcription history:', error);
-  }
+function clearTranscriptionHistory() {
+  clearHistory();
+  recordingStatus.value = 'History cleared';
 }
 </script>
 
-<style>
+<style scoped>
 .container {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+  padding: 20px;
   gap: 20px;
-  width: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  max-width: 800px;
   margin: 0 auto;
-  gap: 0;
-  height: 100vh;
-  width: 100%;
-  justify-content: center;
-  padding-top: 20px;
-
-
-}
-
-.container-left {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  gap: 10px;
-
-}
-
-.container-right {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 85%;
-}
-
-.history-area {
-  display: flex;
-  height: 100%;
-  flex-direction: column;
-  gap: 10px;
-  overflow-y: scroll;
+  height: calc(100vh - 40px);
+  color: white;
 }
 
 h1 {
@@ -261,130 +232,143 @@ h1 {
   margin-bottom: 15px;
 }
 
-#settings {
-  width: 80%;
-  background-color: #1d1d1d;
-  color: white;
+h2 {
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
 }
 
 .settings-row {
   display: flex;
   align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 label {
   font-weight: 500;
-  width: 100px;
+  min-width: 100px;
 }
 
-#model-selector,
-#device-selector {
+input[type="text"],
+select {
   flex: 1;
   font-size: 1em;
   padding: 8px;
   border-radius: 4px;
-  border: 1px solid #ccc;
+  border: 1px solid #444;
+  background-color: #333;
+  color: white;
 }
 
 .recording-controls {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 10px;
+  margin: 15px 0;
 }
 
 .record-button {
-  padding: 8px 24px;
-  width: 100%;
+  padding: 12px 24px;
   font-size: 16px;
-  background-color: #101010;
-  border: 1px solid #8f8f8f;
+  background-color: #4CAF50;
   color: white;
+  border: none;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s;
 }
 
-button {
-  padding: 8px 15px;
-  font-size: 16px;
-  background-color: #292929;
-  border: 1px solid #8f8f8f;
-  color: white;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-button:hover {
-  background-color: #333;
-}
-
-input {
-
-  padding: 8px 15px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  background-color: #292929;
-  color: white;
-}
-
-select {
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  background-color: #292929;
-  color: white;
-  /* the select has some kind of gloss effect how to disable 
-  */
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-}
-
-.record-button:hover {
-  background-color: #09420c;
+.record-button:hover:not(:disabled) {
+  background-color: #45a049;
 }
 
 .record-button.recording {
-  background-color: #58120d;
+  background-color: #f44336;
 }
 
-.record-button.recording:hover {
-  background-color: #8e2222;
+.record-button.recording:hover:not(:disabled) {
+  background-color: #d32f2f;
+}
+
+.record-button:disabled {
+  background-color: #555;
+  cursor: not-allowed;
 }
 
 .status-message {
-  margin-bottom: 10px;
+  margin-top: 5px;
   font-size: 14px;
-  padding: 6px 3px;
-  color: #666;
-  width: 100%;
-  text-align: center;
-  border: 1px dashed #434343;
-  box-sizing: border-box;
+  color: #aaa;
 }
-
-
-textarea {
-  width: 100%;
-  padding: 8px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-}
-
-ul {
-  list-style-type: none;
-  padding: 0;
-}
-
 
 .error-message {
-  color: red;
-  margin-top: 10px;
+  color: #ff6b6b;
+  margin-top: 5px;
+  font-size: 14px;
 }
 
-::backdrop {
-  background-color: #292929;
-  opacity: 0.75;
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+button {
+  padding: 8px 16px;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+button:hover:not(:disabled) {
+  background-color: #2980b9;
+}
+
+button:disabled {
+  background-color: #555;
+  cursor: not-allowed;
+}
+
+.history-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 5px;
+}
+
+/* Custom scrollbar */
+.history-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-list::-webkit-scrollbar-track {
+  background: #333;
+}
+
+.history-list::-webkit-scrollbar-thumb {
+  background-color: #666;
+  border-radius: 6px;
 }
 </style>

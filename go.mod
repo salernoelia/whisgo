@@ -5,7 +5,6 @@ go 1.23
 toolchain go1.23.6
 
 require (
-	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/wailsapp/wails/v2 v2.10.1
 	golang.design/x/hotkey v0.4.1
 	golang.design/x/mainthread v0.3.0

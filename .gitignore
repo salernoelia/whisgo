@@ -21,3 +21,5 @@
 go.work
 
 recordings/
+
+frontend/node_modules/

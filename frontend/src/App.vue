@@ -13,6 +13,8 @@
           <button style="width: fit-content;" @click="saveAPIKey">Save</button>
         </div>
 
+ 
+
         <div class="settings-row">
           <select name="model" id="model-selector" v-model="selectedModel" @change="saveModel">
             <option value="distil-whisper-large-v3-en">distil-whisper-large-v3-en</option>
@@ -28,10 +30,23 @@
             </option>
           </select>
         </div>
-        <div class="settings-row">
-          <input type="checkbox" name="audioPlaybackEnabled" id="audioPlaybackEnabled" v-model="audioPlaybackEnabled" />
-          <label for="audioPlaybackEnabled">Audio signals</label>
+
+        <div class="settings-section">
+        <SoundSettings
+          :audioEnabled="audioPlaybackEnabled"
+          :startSound="startRecordingSound"
+          :stopSound="stopRecordingSound"
+          @toggle-audio="toggleAudioPlayback"
+          @set-start-sound="setStartRecordingSound"
+          @set-stop-sound="setStopRecordingSound"
+          @play-start="handlePlaySound('start')"
+          @play-stop="handlePlaySound('stop')"
+          @reset-sounds="resetToDefaults"
+        />
+
         </div>
+        
+     
 
       </div>
     </dialog>
@@ -72,8 +87,8 @@ import { useGroq } from './composables/useGroq';
 import { useAudioRecording } from './composables/useAudioRecording';
 import { useTranscriptionHistory } from './composables/useTranscriptionHistory';
 import { CopyToClipboard, HideWindow } from '../wailsjs/go/main/App';
-import startAudio from '../src/assets/sfx/start-recording.wav';
-import stopAudio from '../src/assets/sfx/stop-recording.wav';
+import { useSoundEffects } from './composables/useSoundEffects';
+import SoundSettings from './components/SoundSettings.vue';
 
 // Initialize composables
 const {
@@ -103,6 +118,17 @@ const {
   clearHistory
 } = useTranscriptionHistory();
 
+const {
+  audioPlaybackEnabled,
+  startRecordingSound,
+  stopRecordingSound,
+  toggleAudioPlayback,
+  setStartRecordingSound,
+  setStopRecordingSound,
+  resetToDefaults,
+  playSound
+} = useSoundEffects();
+
 
 
 // Local refs
@@ -111,16 +137,6 @@ const settingsDialog = ref<HTMLDialogElement | null>(null);
 const recordingStatus = ref('');
 const currentTranscription = ref('');
 
-const audioPlaybackEnabled = ref(true);
-
-watch(audioPlaybackEnabled, (value: boolean) => {
-  if (value) {
-    playSound(startAudio);
-    localStorage.setItem('audioPlaybackEnabled', JSON.stringify(value));
-  } else {
-    localStorage.setItem('audioPlaybackEnabled', JSON.stringify(value));
-  }
-});
 
 // Computed for UI
 const audioDevices = computed(() => {
@@ -139,13 +155,14 @@ const closeSettings = () => {
   }
 };
 
-const playSound = (track: string) => {
-  if (!audioPlaybackEnabled.value) {
-    return;
+const handlePlaySound = (type: 'start' | 'stop') => {
+  if (type === 'start') {
+    playSound(startRecordingSound.value);
+  } else {
+    playSound(stopRecordingSound.value);
   }
-  const startSound = new Audio(track);
-  startSound.play();
 };
+
 
 onMounted(async () => {
   try {
@@ -201,8 +218,6 @@ async function toggleRecording() {
       addTranscription(transcription);
       currentTranscription.value = transcription;
 
-
-
       historyArea.value?.scrollTo({
         top: 0,
         behavior: 'smooth'
@@ -210,7 +225,7 @@ async function toggleRecording() {
 
       await copyToClipboard(transcription);
       recordingStatus.value = 'Transcription complete and copied to clipboard';
-      playSound(stopAudio);
+      handlePlaySound('stop'); // Updated to use our new sound handler
     } else {
       if (!groqKey.value) {
         recordingStatus.value = 'Please set your Groq API key';
@@ -218,7 +233,7 @@ async function toggleRecording() {
       }
 
       await startRecording();
-      playSound(startAudio);
+      handlePlaySound('start'); // Updated to use our new sound handler
       recordingStatus.value = 'Recording started';
     }
   } catch (error) {
@@ -227,6 +242,7 @@ async function toggleRecording() {
     isRecording.value = false;
   }
 }
+
 
 function saveAPIKey() {
   try {
@@ -427,5 +443,24 @@ ul {
 ::backdrop {
   background-color: #292929;
   opacity: 0.75;
+}
+
+
+.settings-section {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 15px;
+}
+
+.settings-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.settings-header {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 16px;
 }
 </style>

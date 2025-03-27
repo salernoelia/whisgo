@@ -3,6 +3,8 @@
     <dialog id="settings" ref="settingsDialog">
       <button @click="closeSettings" autofocus>Close</button>
 
+
+
       <div class="container-left">
         <div class="groq-key-input" style="display: flex; gap: 10px; align-items: center;">
           <label for="groq-key-input">Key:</label>
@@ -26,6 +28,11 @@
             </option>
           </select>
         </div>
+        <div class="settings-row">
+          <input type="checkbox" name="audioPlaybackEnabled" id="audioPlaybackEnabled" v-model="audioPlaybackEnabled" />
+          <label for="audioPlaybackEnabled">Audio signals</label>
+        </div>
+
       </div>
     </dialog>
 
@@ -58,13 +65,15 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
 import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime';
 import HistoryCard from './components/HistoryCard.vue';
 import { useGroq } from './composables/useGroq';
 import { useAudioRecording } from './composables/useAudioRecording';
 import { useTranscriptionHistory } from './composables/useTranscriptionHistory';
-import { CopyToClipboard } from '../wailsjs/go/main/App';
+import { CopyToClipboard, HideWindow } from '../wailsjs/go/main/App';
+import startAudio from '../src/assets/sfx/start-recording.wav';
+import stopAudio from '../src/assets/sfx/stop-recording.wav';
 
 // Initialize composables
 const {
@@ -94,11 +103,24 @@ const {
   clearHistory
 } = useTranscriptionHistory();
 
+
+
 // Local refs
 const historyArea = ref<HTMLDivElement | null>(null);
 const settingsDialog = ref<HTMLDialogElement | null>(null);
 const recordingStatus = ref('');
 const currentTranscription = ref('');
+
+const audioPlaybackEnabled = ref(true);
+
+watch(audioPlaybackEnabled, (value: boolean) => {
+  if (value) {
+    playSound(startAudio);
+    localStorage.setItem('audioPlaybackEnabled', JSON.stringify(value));
+  } else {
+    localStorage.setItem('audioPlaybackEnabled', JSON.stringify(value));
+  }
+});
 
 // Computed for UI
 const audioDevices = computed(() => {
@@ -117,10 +139,21 @@ const closeSettings = () => {
   }
 };
 
+const playSound = (track: string) => {
+  if (!audioPlaybackEnabled.value) {
+    return;
+  }
+  const startSound = new Audio(track);
+  startSound.play();
+};
+
 onMounted(async () => {
   try {
     // Initialize audio devices
     await initAudioDevices();
+
+    // Load saved settings
+    audioPlaybackEnabled.value = JSON.parse(localStorage.getItem('audioPlaybackEnabled') || 'true');
 
     // Listen for hotkey trigger event from Go backend
     EventsOn('hotkey-triggered', () => {
@@ -158,6 +191,8 @@ async function toggleRecording() {
   try {
     if (isRecording.value) {
       recordingStatus.value = 'Stopping recording...';
+      HideWindow();
+
       const audioBlob = await stopRecording();
 
       recordingStatus.value = 'Transcribing...';
@@ -175,6 +210,7 @@ async function toggleRecording() {
 
       await copyToClipboard(transcription);
       recordingStatus.value = 'Transcription complete and copied to clipboard';
+      playSound(stopAudio);
     } else {
       if (!groqKey.value) {
         recordingStatus.value = 'Please set your Groq API key';
@@ -182,6 +218,7 @@ async function toggleRecording() {
       }
 
       await startRecording();
+      playSound(startAudio);
       recordingStatus.value = 'Recording started';
     }
   } catch (error) {

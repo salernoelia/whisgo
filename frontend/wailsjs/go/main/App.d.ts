@@ -5,4 +5,8 @@ export function CopyToClipboard(arg1:string):Promise<void>;
 
 export function Greet(arg1:string):Promise<string>;
 
+export function HideWindow():Promise<void>;
+
 export function RegisterHotKey():Promise<void>;
+
+export function ShowWindow():Promise<void>;

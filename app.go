@@ -63,7 +63,7 @@ func (a *App) monitorHotkey() {
 	var modifiers []hotkey.Modifier
 
 	if runtime.GOOS == "darwin" {
-		modifiers = []hotkey.Modifier{hotkey.ModAlt}
+		modifiers = []hotkey.Modifier{hotkey.ModCtrl}
 	} else {
 		modifiers = []hotkey.Modifier{hotkey.ModCtrl}
 	}

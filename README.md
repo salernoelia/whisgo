@@ -21,7 +21,3 @@ Depends on FFMpeg, brew is the recommended installation method for it.
 3.  **Start Recording:** Press `Alt+Space` to begin recording.
 4.  **Stop Recording:** Press `Alt+Space` again to stop recording. Whisgo will automatically transcribe the audio and copy the text to your clipboard.
 5.  **View History:** Access your transcription history within the app to review previous transcriptions.
-
-## Dependency
-
-- FFmpeg is required for audio recording on macOS.
